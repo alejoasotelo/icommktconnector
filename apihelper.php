@@ -50,12 +50,12 @@ class ApiHelper {
             'ProfileKey' => Configuration::get('ICOMMKT_PROFILEKEY'),
             'Contact' => array (
                 'Email'=> $email,
-                'CustomFields'=> array(
-                    array (
-                        'Key' => 'newsletter_date_add',
-                        'Value' => $date
-                    )
-                )
+                // 'CustomFields'=> array(
+                //     array (
+                //         'Key' => 'newsletter_date_add',
+                //         'Value' => $date
+                //     )
+                // )
             ),
         );
         $payload = json_encode($data);

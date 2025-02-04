@@ -473,9 +473,13 @@ class Icommktconnector extends Module
             return false;
         }
 
-        $isActionSubscription = $params['action'] != Ps_Emailsubscription::NEWSLETTER_SUBSCRIPTION;
+        if (empty($params['email'])) {
+            return false;
+        }
 
-        if (!empty($params['email']) && $isActionSubscription) {
+        $isActionSubscription = (int) $params['action'] === Ps_Emailsubscription::NEWSLETTER_SUBSCRIPTION;
+
+        if (!$isActionSubscription) {
             return false;
         }
 
@@ -490,13 +494,14 @@ class Icommktconnector extends Module
         $response = json_decode($response, true);
 
         if ($response['SaveContactJsonResult']['StatusCode'] != ApiHelper::STATUS_CODE_SUCCESS) {
+            PrestaShopLogger::addLog('Error al enviar la suscripción a Icomm: ' . $email . ' -> ' . json_encode($response));
             return false;
         }
 
         if ($this->storeEmailSubscription($params['email'], $now)) {
-            PrestaShopLogger::addLog('Suscripción exitosa: ' . $email, 1, null, $this->name);
+            PrestaShopLogger::addLog('Suscripción exitosa: ' . $email);
         } else {
-            PrestaShopLogger::addLog('Error al guardar la suscripción: ' . $email, 1, null, $this->name);
+            PrestaShopLogger::addLog('Error al guardar la suscripción: ' . $email);
         }
     }
 
