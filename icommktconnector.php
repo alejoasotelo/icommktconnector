@@ -488,20 +488,21 @@ class Icommktconnector extends Module
         $response = ApiHelper::getInstance()->sendContactToIcommkt($params['email'], $now);
 
         if ($response === false) {
+            PrestaShopLogger::addLog('Error API al enviar la suscripción a Icomm: ' . $params['email']);
             return false;
         }
 
         $response = json_decode($response, true);
 
         if ($response['SaveContactJsonResult']['StatusCode'] != ApiHelper::STATUS_CODE_SUCCESS) {
-            PrestaShopLogger::addLog('Error al enviar la suscripción a Icomm: ' . $email . ' -> ' . json_encode($response));
+            PrestaShopLogger::addLog('Error al enviar la suscripción a Icomm: ' . $params['email'] . ' -> ' . json_encode($response));
             return false;
         }
 
         if ($this->storeEmailSubscription($params['email'], $now)) {
-            PrestaShopLogger::addLog('Suscripción exitosa: ' . $email);
+            PrestaShopLogger::addLog('Suscripción exitosa: ' . $params['email']);
         } else {
-            PrestaShopLogger::addLog('Error al guardar la suscripción: ' . $email);
+            PrestaShopLogger::addLog('Error al guardar la suscripción: ' . $params['email']);
         }
     }
 
