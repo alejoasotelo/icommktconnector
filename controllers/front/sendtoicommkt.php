@@ -14,6 +14,12 @@
  *
  */
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
+require_once dirname(dirname(__DIR__)) . '/apihelper.php';
+
 class IcommktconnectorSendToIcommktModuleFrontController extends ModuleFrontController
 {
 
@@ -67,11 +73,13 @@ class IcommktconnectorSendToIcommktModuleFrontController extends ModuleFrontCont
             
             $result = Db::getInstance()->executeS($sql);
 
+            $apiHelper = ApiHelper::getInstance();
+
             foreach ($result as $user) {
                 if ($user['email']) {
-                    $response = $this->doRequestIcommkt($user['email'], $user['newsletter_date_add']);
+                    $response = $apiHelper->sendContactToIcommkt($user['email'], $user['newsletter_date_add']);
                     $response = json_decode($response, true);
-                    if ($response['SaveContactJsonResult']['StatusCode'] == 1) {
+                    if ($response['SaveContactJsonResult']['StatusCode'] == ApiHelper::STATUS_CODE_SUCCESS) {
                         Db::getInstance()->update(
                             $table,
                             array(
@@ -83,38 +91,5 @@ class IcommktconnectorSendToIcommktModuleFrontController extends ModuleFrontCont
                 }
             }
         }
-    }
-
-    public function doRequestIcommkt($email, $newsletter_date_add)
-    {
-        $date = date_create($newsletter_date_add);
-        $date = date_format($date, "d/m/Y");
-        $url =  "https://api.icommarketing.com/Contacts/SaveContact.Json/";
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        $data = array(
-            'ProfileKey' => Configuration::get('ICOMMKT_PROFILEKEY'),
-            'Contact' => array (
-                'Email'=> $email,
-                'CustomFields'=> array(
-                    array (
-                        'Key' => 'newsletter_date_add',
-                        'Value' => $date
-                    )
-                )
-            ),
-        );
-        $payload = json_encode($data);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-            'Content-Type:application/json',
-            'Authorization:' . Configuration::get('ICOMMKT_APIKEY')
-        ));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-        $response = curl_exec($ch);
-        curl_close($ch);
-
-        return $response;
     }
 }

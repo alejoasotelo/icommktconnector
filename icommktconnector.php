@@ -18,6 +18,8 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+require_once __DIR__ . '/apihelper.php';
+
 class Icommktconnector extends Module
 {
     protected $config_form = false;
@@ -26,7 +28,7 @@ class Icommktconnector extends Module
     {
         $this->name = 'icommktconnector';
         $this->tab = 'emailing';
-        $this->version = '1.2.2';
+        $this->version = '1.2.3';
         $this->author = 'icommkt';
         $this->need_instance = 0;
 
@@ -46,7 +48,8 @@ class Icommktconnector extends Module
         return parent::install() &&
         $this->installDb() &&
         $this->addNewColumn() &&
-        $this->registerHook('moduleRoutes');
+        $this->registerHook('moduleRoutes') &&
+        $this->registerHook('actionNewsletterRegistrationAfter');
     }
 
     public function uninstall()
@@ -456,6 +459,131 @@ class Icommktconnector extends Module
         );
 
         return $result;
+    }
+
+    /**
+     * Este hook se ejecuta después de que un usuario se registra
+     * en el módulo de newsletter de Prestashop
+     * 
+     * @param array $params = ['hookName', 'email', 'action', 'error', 'module']
+     */
+    public function hookActionNewsletterRegistrationAfter($params)
+    {
+        if ($params['module'] != 'ps_emailsubscription') {
+            return false;
+        }
+
+        $isActionSubscription = $params['action'] != Ps_Emailsubscription::NEWSLETTER_SUBSCRIPTION;
+
+        if (!empty($params['email']) && $isActionSubscription) {
+            return false;
+        }
+
+        $now = date('Y-m-d H:i:s');
+
+        $response = ApiHelper::getInstance()->sendContactToIcommkt($params['email'], $now);
+
+        if ($response === false) {
+            return false;
+        }
+
+        $response = json_decode($response, true);
+
+        if ($response['SaveContactJsonResult']['StatusCode'] != ApiHelper::STATUS_CODE_SUCCESS) {
+            return false;
+        }
+
+        if ($this->storeEmailSubscription($params['email'], $now)) {
+            PrestaShopLogger::addLog('Suscripción exitosa: ' . $email, 1, null, $this->name);
+        } else {
+            PrestaShopLogger::addLog('Error al guardar la suscripción: ' . $email, 1, null, $this->name);
+        }
+    }
+
+    /**
+     * Guarda o actualiza un email en la tabla de emailsubscription
+     *
+     * @param string $email
+     * @param string $date
+     * @return bool
+     */
+    protected function storeEmailSubscription($email, $date)
+    {
+        if (!$this->existsInEmailSubscription($email)) {
+            return $this->addEmailSubscription($email, $date);
+        }
+
+        return $this->updateEmailSubscription($email, $date);
+    }
+
+    /**
+     * Verifica si un email ya existe en la tabla de emailsubscription
+     *
+     * @param string $email
+     *
+     * @return bool
+     */
+    public function existsInEmailSubscription($email)
+    {
+        $sql = 'SELECT count(*)
+                FROM ' . _DB_PREFIX_ . 'emailsubscription 
+                WHERE `email` = \'' . pSQL($email) . '\'
+                AND id_shop = ' . $this->context->shop->id;
+
+        return Db::getInstance()->getValue($sql) > 0;
+    }
+
+    /**
+     * Subscribe un email a la tabla de emailsubscription
+     *
+     * @param string $email
+     * @param string $date
+     *
+     * @return bool
+     */
+    protected function addEmailSubscription($email, $date)
+    {
+        $sql = 'INSERT INTO ' . _DB_PREFIX_ . 'emailsubscription 
+                (id_shop, id_shop_group, email, newsletter_date_add, ip_registration_newsletter, http_referer, active, id_lang, is_send_icommkt, date_send_icommkt)
+                VALUES
+                (' . $this->context->shop->id . ',
+                ' . $this->context->shop->id_shop_group . ',
+                \'' . pSQL($email) . '\',
+                \'' . $date . '\',
+                \'' . pSQL(Tools::getRemoteAddr()) . '\',
+                (
+                    SELECT c.http_referer
+                    FROM ' . _DB_PREFIX_ . 'connections c
+                    WHERE c.id_guest = ' . (int) $this->context->customer->id . '
+                    ORDER BY c.date_add DESC LIMIT 1
+                ),
+                1,
+                ' . $this->context->language->id . ',
+                1,
+                \'' . $date . '\'
+                )';
+
+        return Db::getInstance()->execute($sql);
+    }
+
+    /**
+     * Actualiza la fecha de envío de un email en la tabla de emailsubscription
+     * 
+     * @param string $email
+     * @param string $date
+     * 
+     * @return bool
+     */
+    protected function updateEmailSubscription($email, $date)
+    {
+        return Db::getInstance()->update(
+            'emailsubscription',
+            array(
+                'is_send_icommkt' => 1,
+                'date_send_icommkt' => $date
+            ),
+            'email = \'' . pSQL($email) . '\' AND id_shop = ' . $this->context->shop->id
+        );
     }
 
     public function getSingleOrder($id_order)
