@@ -522,21 +522,21 @@ class Icommktconnector extends Module
         $response = ApiHelper::getInstance($apiKey, $profileKey)->sendContactToIcommkt($params['email']);
 
         if ($response === false) {
-            PrestaShopLogger::addLog('Error API al enviar la suscripción a Icomm: ' . $params['email']);
+            PrestaShopLogger::addLog('Error API al enviar la suscripción a Icomm: ' . $params['email'], 1, null, null, null, true);
             return false;
         }
 
         $response = json_decode($response, true);
 
         if ($response['SaveContactJsonResult']['StatusCode'] != ApiHelper::STATUS_CODE_SUCCESS) {
-            PrestaShopLogger::addLog('Error al enviar la suscripción a Icomm: ' . $params['email'] . ' -> ' . json_encode($response));
+            PrestaShopLogger::addLog('Error al enviar la suscripción a Icomm: ' . $params['email'] . ' -> ' . json_encode($response), 1, $response['SaveContactJsonResult']['StatusCode'], null, null, true);
             return false;
         }
 
         if ($this->storeEmailSubscription($params['email'], $now)) {
-            PrestaShopLogger::addLog('Suscripción exitosa: ' . $params['email']);
+            PrestaShopLogger::addLog('Suscripción exitosa: ' . $params['email'], 1, $response['SaveContactJsonResult']['StatusCode'], null, null, true);
         } else {
-            PrestaShopLogger::addLog('Error al guardar la suscripción: ' . $params['email']);
+            PrestaShopLogger::addLog('Error al guardar la suscripción: ' . $params['email'], 1, $response['SaveContactJsonResult']['StatusCode'], null, null, true);
         }
     }
 
