@@ -22,47 +22,74 @@ class ApiHelper {
 
     const STATUS_CODE_SUCCESS = 1;
 
-    private static $instance = null;
+    private static $instances = [];
 
-    public static function getInstance()
+    protected $apiKey;
+
+    protected $profileKey;
+
+    public static function getInstance($apiKey = null, $profileKey = null)
     {
-        if (self::$instance == null) {
-            self::$instance = new ApiHelper();
+        $instanceId = md5($apiKey . $profileKey);
+
+        if (!isset(self::$instances[$instanceId])) {
+            self::$instances[$instanceId] = new self($apiKey, $profileKey);
         }
-        return self::$instance;
+
+        return self::$instances[$instanceId];
+    }
+
+    public function __construct($apiKey = null, $profileKey = null)
+    {
+        $this->apiKey = is_null($apiKey) ? Configuration::get('ICOMMKT_APIKEY') : $apiKey;
+        $this->profileKey = is_null($profileKey) ? Configuration::get('ICOMMKT_PROFILEKEY') : $profileKey;
     }
 
     /**
      * Envía un contacto a Icommkt
      *
      * @param string $email
-     * @param string $newsletter_date_add
+     * @param string $newsletter_date_add @deprecated version 1.2.4
      * @return string|false
      */
-    public function sendContactToIcommkt($email, $newsletter_date_add)
+    public function sendContactToIcommkt($email, $newsletter_date_add = '')
     {
-        $date = date_create($newsletter_date_add);
-        $date = date_format($date, "d/m/Y");
+        return $this->sendContactRequest($email);
+    }
+
+    /**
+     * Envía un contacto a Icommkt con campos personalizados
+     *
+     * @param string $email
+     * @param array $customFields
+     * @return string|false
+     */
+    public function sendContactToIcommktWithCustomFields($email, $customFields)
+    {
+        return $this->sendContactRequest($email, $customFields);
+    }
+
+    protected function sendContactRequest($email, $customFields = [])
+    {
         $url =  "https://api.icommarketing.com/Contacts/SaveContact.Json/";
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         $data = array(
-            'ProfileKey' => Configuration::get('ICOMMKT_PROFILEKEY'),
+            'ProfileKey' => $this->profileKey,
             'Contact' => array (
                 'Email'=> $email,
-                // 'CustomFields'=> array(
-                //     array (
-                //         'Key' => 'newsletter_date_add',
-                //         'Value' => $date
-                //     )
-                // )
             ),
         );
+
+        if (!empty($customFields) && is_array($customFields)) {
+            $data['Contact']['CustomFields'] = $customFields;
+        }
+
         $payload = json_encode($data);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
             'Content-Type:application/json',
-            'Authorization:' . Configuration::get('ICOMMKT_APIKEY')
+            'Authorization:' . $this->apiKey
         ));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 15);

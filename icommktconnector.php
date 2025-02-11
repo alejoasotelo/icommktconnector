@@ -28,7 +28,7 @@ class Icommktconnector extends Module
     {
         $this->name = 'icommktconnector';
         $this->tab = 'emailing';
-        $this->version = '1.2.3';
+        $this->version = '1.2.4';
         $this->author = 'icommkt';
         $this->need_instance = 0;
 
@@ -66,6 +66,10 @@ class Icommktconnector extends Module
         foreach ($sql as $query) {
             Db::getInstance()->Execute($query);
         }
+
+        Configuration::updateValue('ICOMMKT_API_APIKEY', '');
+        Configuration::updateValue('ICOMMKT_API_PROFILEKEY', '');
+
         return true;
     }
 
@@ -101,6 +105,9 @@ class Icommktconnector extends Module
     {
         Db::getInstance()->Execute('DROP TABLE `' . _DB_PREFIX_ . 'commktconnector_abandomentcarts`');
         Db::getInstance()->Execute('DROP TABLE `' . _DB_PREFIX_ . 'commktconnector_abandomentcarts_error`');
+
+        Configuration::deleteByName('ICOMMKT_API_APIKEY');
+        Configuration::deleteByName('ICOMMKT_API_PROFILEKEY', '');
 
         return true;
     }
@@ -260,7 +267,29 @@ class Icommktconnector extends Module
                                 'label' => 'Disabled'
                             )
                         )
-                    )
+                    ),
+                    array(
+                        'type' => 'html',
+                        'name' => 'divisor-api',
+                        'html_content' => '<hr><h4>API</h4>',
+                    ),
+                    array(
+                        'col' => 3,
+                        'type' => 'text',
+                        'prefix' => '<i class="icon icon-gear"></i>',
+                        'desc' => $this->l('API KEY code from the account icommkt'),
+                        'name' => 'ICOMMKT_API_APIKEY',
+                        'label' => $this->l('API Key'),
+                    ),
+                    array(
+                        'col' => 3,
+                        'type' => 'text',
+                        'class' => 'newsletter',
+                        'prefix' => '<i class="icon icon-gear"></i>',
+                        'desc' => $this->l('Code obtained from the account profile'),
+                        'name' => 'ICOMMKT_API_PROFILEKEY',
+                        'label' => $this->l('Profile Key'),
+                    ),
                 ),
                 'submit' => array(
                     'title' => $this->l('Save'),
@@ -285,6 +314,8 @@ class Icommktconnector extends Module
             'ICOMMKT_SECURE_TOKEN' => Configuration::get('ICOMMKT_SECURE_TOKEN', null),
             'ICOMMKT_DAYS_TO_ABANDON' => !empty($icommkt_days_to_abandon) ? $icommkt_days_to_abandon : '1',
             'ICOMMKT_FRIENDLY_URL' => Configuration::get('ICOMMKT_FRIENDLY_URL', null),
+            'ICOMMKT_API_APIKEY' => Configuration::get('ICOMMKT_API_APIKEY', null),
+            'ICOMMKT_API_PROFILEKEY' => Configuration::get('ICOMMKT_API_PROFILEKEY', null),
         );
     }
 
@@ -485,7 +516,10 @@ class Icommktconnector extends Module
 
         $now = date('Y-m-d H:i:s');
 
-        $response = ApiHelper::getInstance()->sendContactToIcommkt($params['email'], $now);
+        $apiKey = Configuration::get('ICOMMKT_API_APIKEY');
+        $profileKey = Configuration::get('ICOMMKT_API_PROFILEKEY');
+
+        $response = ApiHelper::getInstance($apiKey, $profileKey)->sendContactToIcommkt($params['email']);
 
         if ($response === false) {
             PrestaShopLogger::addLog('Error API al enviar la suscripción a Icomm: ' . $params['email']);
